@@ -52,7 +52,8 @@ Macros are defined in `/etc/g710d.conf`.
 `P<profile> G<key> <key1> <key2> ...`
 
 **Keywords:**
-*   `RELEASE`: Manually force all currently held modifiers to be released.
+*   `RELEASE`: Manually force all currently held modifiers and keys to be released.
+*   `HOLD`: Prefix a key to keep it held down until the end of the macro or a `RELEASE` keyword.
 
 **Examples:**
 <pre>
@@ -66,8 +67,9 @@ P1 G2 KEY_LEFTCTRL KEY_C
 # RightAlt+Q gives '@', then Alt is released before typing the rest.
 P1 G4 KEY_RIGHTALT KEY_Q KEY_R KEY_E KEY_N KEY_O KEY_X KEY_I
 
-# Manual control using RELEASE
-P1 G5 KEY_LEFTCTRL KEY_A RELEASE KEY_BACKSPACE
+# Manual control using HOLD and RELEASE
+# Holds A and B at the same time, then taps C.
+P1 G5 HOLD KEY_A HOLD KEY_B KEY_C
 </pre>
 
 A full list of available key codes can be found in `/usr/include/linux/input-event-codes.h` (remove the `KEY_` prefix or use the full name).

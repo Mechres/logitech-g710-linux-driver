@@ -103,6 +103,10 @@ void load_config() {
                 if (m->key_count < MAX_KEYS_PER_MACRO) m->keys[m->key_count++] = -2;
                 continue;
             }
+            if (strcmp(token, "HOLD") == 0) {
+                if (m->key_count < MAX_KEYS_PER_MACRO) m->keys[m->key_count++] = -3;
+                continue;
+            }
             int code = libevdev_event_code_from_name(EV_KEY, token);
             if (code != -1 && m->key_count < MAX_KEYS_PER_MACRO) {
                 m->keys[m->key_count++] = code;
@@ -127,21 +131,31 @@ void run_macro(struct libevdev_uinput *uidev, int g_key) {
         if (macros[i].profile == current_profile && macros[i].g_key == g_key) {
             printf("Executing macro for G%d (Profile %d)\n", g_key - KEY_F17 + 1, current_profile);
             
-            int held_modifiers[16];
+            int held_keys[16];
+            int held_is_manual[16];
             int held_count = 0;
+            int force_hold = 0;
 
             for (int j = 0; j < macros[i].key_count; j++) {
                 int code = macros[i].keys[j];
 
+                if (code == -3) { // HOLD prefix
+                    force_hold = 1;
+                    continue;
+                }
+
                 if (code == -2) { // Explicit RELEASE
                     for (int k = held_count - 1; k >= 0; k--) {
-                        send_key(uidev, held_modifiers[k], 0);
+                        send_key(uidev, held_keys[k], 0);
                         usleep(5000);
                     }
                     held_count = 0;
-                } else if (is_modifier(code)) {
+                } else if (is_modifier(code) || force_hold) {
                     send_key(uidev, code, 1);
-                    held_modifiers[held_count++] = code;
+                    held_keys[held_count] = code;
+                    held_is_manual[held_count] = force_hold;
+                    held_count++;
+                    force_hold = 0;
                     usleep(5000);
                 } else {
                     send_key(uidev, code, 1);
@@ -149,19 +163,29 @@ void run_macro(struct libevdev_uinput *uidev, int g_key) {
                     send_key(uidev, code, 0);
                     usleep(10000);
                     
-                    // Smart Auto-release: if next key is not a modifier, release current modifiers
-                    if (held_count > 0 && j + 1 < macros[i].key_count && !is_modifier(macros[i].keys[j+1]) && macros[i].keys[j+1] != -2) {
-                        for (int k = held_count - 1; k >= 0; k--) {
-                            send_key(uidev, held_modifiers[k], 0);
-                            usleep(5000);
+                    // Smart Auto-release (only for automatic modifiers)
+                    if (held_count > 0 && j + 1 < macros[i].key_count && 
+                        !is_modifier(macros[i].keys[j+1]) && 
+                        macros[i].keys[j+1] != -2 && macros[i].keys[j+1] != -3) {
+                        
+                        int new_count = 0;
+                        for (int k = 0; k < held_count; k++) {
+                            if (!held_is_manual[k]) { // Release automatic modifiers
+                                send_key(uidev, held_keys[k], 0);
+                            } else { // Keep manual HOLDs
+                                held_keys[new_count] = held_keys[k];
+                                held_is_manual[new_count] = 1;
+                                new_count++;
+                            }
                         }
-                        held_count = 0;
+                        held_count = new_count;
+                        usleep(5000);
                     }
                 }
             }
 
             for (int j = held_count - 1; j >= 0; j--) {
-                send_key(uidev, held_modifiers[j], 0);
+                send_key(uidev, held_keys[j], 0);
                 usleep(5000);
             }
             return;
