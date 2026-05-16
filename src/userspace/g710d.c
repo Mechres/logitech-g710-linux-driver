@@ -345,7 +345,8 @@ int main(int argc, char **argv) {
         return 1;
     }
     if (find_sysfs_path() < 0) {
-        fprintf(stderr, "Could not find sysfs path for LEDs.\n");
+        fprintf(stderr, "Error: Could not find sysfs path for G710+ LEDs. Is the 'hid_lg_g710_plus' kernel module loaded?\n");
+        fprintf(stderr, "Hint: Run 'lsmod | grep hid_lg_g710_plus' to check.\n");
     } else {
         printf("Found sysfs LED path: %s\n", sysfs_led_path);
         set_profile_led(current_profile, 0);

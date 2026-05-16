@@ -35,11 +35,41 @@ if [[ "${EUID}" -ne 0 ]]; then
     exit 1
 fi
 
-echo "Building and installing module and daemon..."
-make -C "${SCRIPT_DIR}" clean
-make -C "${SCRIPT_DIR}"
-make -C "${SCRIPT_DIR}" install
+# DKMS Installation (Recommended for kernel updates)
+if command -v dkms >/dev/null 2>&1; then
+    echo "DKMS detected. Installing module via DKMS..."
+    DKMS_NAME="hid-lg-g710-plus"
+    DKMS_VER="0.1"
+    
+    # Remove old version if exists
+    dkms remove "${DKMS_NAME}/${DKMS_VER}" --all >/dev/null 2>&1 || true
+    
+    # Create source directory
+    rm -rf "/usr/src/${DKMS_NAME}-${DKMS_VER}"
+    mkdir -p "/usr/src/${DKMS_NAME}-${DKMS_VER}"
+    cp -r "${SCRIPT_DIR}/src/kernel/"* "/usr/src/${DKMS_NAME}-${DKMS_VER}/"
+    
+    # Add, build and install
+    dkms add "${DKMS_NAME}/${DKMS_VER}"
+    dkms build "${DKMS_NAME}/${DKMS_VER}"
+    dkms install "${DKMS_NAME}/${DKMS_VER}" --force
+    echo "DKMS installation complete. Driver will survive kernel updates."
+else
+    echo "DKMS not found. Falling back to manual module installation..."
+    make -C "${SCRIPT_DIR}/src/kernel" clean
+    make -C "${SCRIPT_DIR}/src/kernel"
+    make -C "${SCRIPT_DIR}/src/kernel" install
+fi
+
+echo "Building and installing daemon..."
+make -C "${SCRIPT_DIR}/src/userspace" clean
+make -C "${SCRIPT_DIR}/src/userspace"
+make -C "${SCRIPT_DIR}/src/userspace" install
 depmod -a
+
+# Force reload the module
+rmmod hid_lg_g710_plus >/dev/null 2>&1 || true
+modprobe hid_lg_g710_plus
 
 if [[ ! -f "/etc/g710d.conf" ]]; then
     echo "Installing default configuration to /etc/g710d.conf..."
